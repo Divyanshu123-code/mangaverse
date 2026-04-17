@@ -35,37 +35,33 @@ export default function HomePage() {
     let cancelled = false;
 
     async function loadData() {
-      try {
-        setLoadingTop(true);
-        setLoadingTrend(true);
-        setLoadingRecent(true);
+      setLoadingTop(true);
+      setLoadingTrend(true);
+      setLoadingRecent(true);
 
-        const [top, trend, recent] = await Promise.all([
-          fetchTopRated(lang).catch(() => []),
-          fetchTrending(lang).catch(() => []),
-          fetchRecentlyUpdated(lang).catch(() => []),
-        ]);
+      const [topResult, trendResult, recentResult] = await Promise.allSettled([
+        fetchTopRated(lang),
+        fetchTrending(lang),
+        fetchRecentlyUpdated(lang),
+      ]);
 
-        if (cancelled) return;
+      if (cancelled) return;
 
-        setTopRated(top);
-        setTrending(trend);
-        setRecentlyUpdated(recent);
-      } catch (err) {
-        console.error("Error loading data:", err);
-      } finally {
-        if (!cancelled) {
-          setLoadingTop(false);
-          setLoadingTrend(false);
-          setLoadingRecent(false);
-        }
-      }
+      if (topResult.status === "fulfilled") setTopRated(topResult.value);
+      else console.error("Top rated failed:", topResult.reason);
+      setLoadingTop(false);
+
+      if (trendResult.status === "fulfilled") setTrending(trendResult.value);
+      else console.error("Trending failed:", trendResult.reason);
+      setLoadingTrend(false);
+
+      if (recentResult.status === "fulfilled") setRecentlyUpdated(recentResult.value);
+      else console.error("Recently updated failed:", recentResult.reason);
+      setLoadingRecent(false);
     }
 
     loadData();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [lang]);
 
   // Auto-rotate hero every 8s

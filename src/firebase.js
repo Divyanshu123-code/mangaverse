@@ -23,15 +23,15 @@ import {
   getDownloadURL 
 } from "firebase/storage";
 
-// 🔑 Firebase config (keep yours here)
+// 🔑 Firebase config — values loaded from .env (VITE_FIREBASE_*)
 const firebaseConfig = {
-  apiKey: "AIzaSyDWeimRnF3kOp7aAUdA9ij5KazjL4rRII8",
-  authDomain: "mangaverse-b4b47.firebaseapp.com",
-  projectId: "mangaverse-b4b47",
-  storageBucket: "mangaverse-b4b47.appspot.com",
-  messagingSenderId: "281231845221",
-  appId: "1:281231845221:web:d8d97a71afa0b13070238c",
-  measurementId: "G-YBHVC6SKSN"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
 // 🚀 Initialize Firebase

@@ -29,7 +29,7 @@ export default function IntroPage() {
         </p>
 
         <Link
-          to="/login"
+          to="/home"
           className="px-9 py-3 rounded-full font-semibold text-white
           bg-gradient-to-r from-pink-500 via-red-500 to-red-600
           hover:scale-105 hover:shadow-[0_0_40px_rgba(239,68,68,0.45)]

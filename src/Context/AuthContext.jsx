@@ -16,7 +16,7 @@ import {
 } from "firebase/firestore";
 
 const AuthContext = createContext();
-const DEV_MODE = true;
+const DEV_MODE = import.meta.env.VITE_DEV_MODE === "true";
 
 export function useAuth() {
   return useContext(AuthContext);

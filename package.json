@@ -10,10 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "axios": "^1.12.2",
-    "cheerio": "^1.1.2",
-    "cloudscraper": "^4.6.0",
-    "express": "^5.1.0",
+    "baseline-browser-mapping": "^2.10.10",
+    "caniuse-lite": "^1.0.30001781",
     "firebase": "^12.2.1",
     "framer-motion": "^12.23.22",
     "lucide-react": "^0.542.0",
@@ -29,7 +27,6 @@
     "@types/react": "^18.2.15",
     "@types/react-dom": "^18.2.7",
     "@vitejs/plugin-react": "^5.0.1",
-    "@vitejs/plugin-react-swc": "^3.3.2",
     "autoprefixer": "^10.4.15",
     "eslint": "^8.57.1",
     "eslint-plugin-react": "^7.37.5",

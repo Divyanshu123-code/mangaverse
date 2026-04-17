@@ -93,6 +93,59 @@
   color: #e50914;
 }
 
+/* ================= GOOGLE BUTTON ================= */
+.google-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px;
+  border-radius: 6px;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  color: #f5f5f5;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.google-btn:hover:not(:disabled) {
+  background: #252525;
+  border-color: #555;
+  transform: scale(1.02);
+}
+
+.google-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.google-icon {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+}
+
+/* ================= OR DIVIDER ================= */
+.or-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 0;
+  color: #555;
+  font-size: 12px;
+}
+
+.or-divider::before,
+.or-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: #333;
+}
+
 /* ================= PANEL STATES ================= */
 .panel-login {
   transform: translateX(0%);

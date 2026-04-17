@@ -1,17 +1,29 @@
 // src/pages/SearchResultsPage.jsx
 import { useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { fetchManga } from "../Api/mangaApi"; // ✅ use generic fetchManga, not fetchMangaList
+import { fetchManga } from "../Api/mangaApi";
 import Select from "react-select";
 
+// MangaDex tag UUIDs — these are stable
 const genreOptions = [
   { value: "391b0423-d847-456f-aff0-8b0cfc03066b", label: "Action" },
-  { value: "87cc87cd-a395-47af-b27a-93258283bbc6", label: "Romance" },
+  { value: "87cc87cd-a395-47af-b27a-93258283bbc6", label: "Adventure" },
   { value: "4d32cc48-9f00-4cca-9b5a-a839f0764984", label: "Comedy" },
   { value: "cdc58593-87dd-415e-bbc0-2ec27bf404cc", label: "Drama" },
   { value: "f4122d1c-3b44-44d2-adc6-4d2e5e60f05d", label: "Fantasy" },
   { value: "aafb99c1-7f60-43fa-b75f-fc9502ce29c7", label: "Horror" },
   { value: "e5301a23-ebd9-49dd-a0cb-2add944c7fe9", label: "Slice of Life" },
+  { value: "ee968100-4191-4968-93d3-f82d72be7e46", label: "Mystery" },
+  { value: "b9af3a63-f058-46de-a9a0-e0c13906197a", label: "Drama" },
+  { value: "caaa44eb-cd40-4177-b930-79d3ef2afe87", label: "School Life" },
+  { value: "5ca48985-9a9d-4bd8-be29-80dc0303db72", label: "Sports" },
+  { value: "eabc5b4c-6aff-42f3-b657-3e90cbd00b75", label: "Supernatural" },
+  { value: "256c8bd9-4904-4360-bf4f-508a76d67183", label: "Sci-Fi" },
+  { value: "a1f53773-c69a-4ce5-8cab-fffcd90b1565", label: "Psychological" },
+  { value: "ace04997-f6bd-436e-b261-779182193d3d", label: "Isekai" },
+  { value: "81c836c9-914a-4eca-981a-560dad663e73", label: "Martial Arts" },
+  { value: "799c202e-7daa-44eb-9cf7-8a3c0441531e", label: "Mecha" },
+  { value: "87cc87cd-a395-47af-b27a-93258283bbc6", label: "Romance" },
 ];
 
 const demographicOptions = [
@@ -35,25 +47,18 @@ export default function SearchPage() {
         setLoading(true);
         const params = {};
 
-        // Map filters to MangaDex API parameters
         if (filters.title) params.title = filters.title;
-        if (filters.status) params["status[]"] = filters.status;
-        if (filters.type) {
-          if (filters.type === "manga") params["originalLanguage[]"] = "ja";
-          if (filters.type === "manhwa") params["originalLanguage[]"] = "ko";
-          if (filters.type === "manhua") params["originalLanguage[]"] = "zh";
-        }
-        if (filters.genres?.length) {
-          params["includedTags[]"] = filters.genres;
-        }
-        if (filters.demographic)
-          params["publicationDemographic[]"] = filters.demographic;
+        if (filters.status) params.status = filters.status;
+        if (filters.type) params["originalLanguage[]"] = filters.type === "manga" ? "ja" : filters.type === "manhwa" ? "ko" : "zh";
+        if (filters.genres?.length) params.genres = filters.genres;
+        if (filters.demographic) params.demographic = filters.demographic;
+        params["order[relevance]"] = "desc";
 
-        // ✅ Call correct API function
         const data = await fetchManga(params);
         setResults(data);
       } catch (err) {
         console.error("Error fetching search results:", err);
+        setResults([]);
       } finally {
         setLoading(false);
       }
@@ -168,14 +173,16 @@ export default function SearchPage() {
             {results.map((manga) => (
               <div
                 key={manga.id}
-                className="bg-gray-900 p-2 rounded-lg hover:scale-105 transition"
+                onClick={() => navigate(`/manga/${manga.id}`)}
+                className="bg-gray-900 p-2 rounded-lg hover:scale-105 transition cursor-pointer"
               >
                 <img
                   src={manga.cover}
                   alt={manga.title}
-                  className="rounded-md mb-2"
+                  className="rounded-md mb-2 w-full aspect-[2/3] object-cover"
                 />
                 <h3 className="text-sm font-medium truncate">{manga.title}</h3>
+                <p className="text-xs text-gray-400 capitalize">{manga.status}</p>
               </div>
             ))}
           </div>

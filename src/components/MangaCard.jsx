@@ -2,7 +2,7 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 
-export default function MangaCard({ manga }) {
+export default function MangaCard({ manga, onCardClick }) {
   const navigate = useNavigate();
 
   if (!manga) {
@@ -14,10 +14,14 @@ export default function MangaCard({ manga }) {
   }
 
   const { id, cover, title, status, year } = manga;
+  const handleClick = () => {
+    if (onCardClick) onCardClick(manga);
+    else if (id) navigate(`/manga/${id}`);
+  };
 
   return (
     <div
-      onClick={() => id && navigate(`/manga/${id}`)}
+      onClick={handleClick}
       className="group bg-[#10141f] p-2 rounded-lg w-[160px] cursor-pointer 
                  transform transition duration-300 hover:scale-105 
                  hover:shadow-[0_0_15px_rgba(236,72,153,0.4)]"

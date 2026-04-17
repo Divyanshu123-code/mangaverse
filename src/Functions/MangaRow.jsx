@@ -3,7 +3,7 @@ import React, { useRef } from "react";
 import MangaCard from "../components/MangaCard";
 import SkeletonCard from "../components/SkeletonCard";
 
-export default function MangaRow({ title, items = [], loading = false }) {
+export default function MangaRow({ title, items = [], loading = false, onCardClick }) {
   const scroller = useRef(null);
 
   const scrollBy = (dx) => {
@@ -46,7 +46,7 @@ export default function MangaRow({ title, items = [], loading = false }) {
         <div className="flex gap-3">
           {loading
             ? Array.from({ length: 10 }).map((_, i) => <SkeletonCard key={i} />)
-            : items.map((m) => <MangaCard key={m.id} manga={m} />)}
+            : items.map((m) => <MangaCard key={m.id} manga={m} onCardClick={onCardClick} />)}
         </div>
       </div>
     </section>

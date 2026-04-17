@@ -1,9 +1,73 @@
 // src/components/AuthCard.jsx
-import { Link } from "react-router-dom";
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../Context/AuthContext";
 import "./AuthCard.css";
 
 export default function AuthCard({ mode }) {
   const isSignup = mode === "signup";
+  const navigate = useNavigate();
+  const { login, signup, loginWithGoogle } = useAuth();
+  
+  const [formData, setFormData] = useState({
+    name: "",
+    email: "",
+    password: ""
+  });
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleChange = (e) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value
+    });
+    setError("");
+  };
+
+  const handleLoginSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    try {
+      await login(formData.email, formData.password);
+      navigate("/home");
+    } catch (err) {
+      setError(err.message || "Failed to login");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSignupSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    try {
+      await signup(formData.email, formData.password);
+      navigate("/home");
+    } catch (err) {
+      setError(err.message || "Failed to sign up");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setError("");
+    setLoading(true);
+
+    try {
+      await loginWithGoogle();
+      navigate("/home");
+    } catch (err) {
+      setError(err.message || "Failed to login with Google");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleMouseMove = (e) => {
     const card = e.currentTarget;
@@ -34,13 +98,46 @@ export default function AuthCard({ mode }) {
           <h2>Welcome Back</h2>
           <p>Login to continue</p>
 
-          <form>
-            <input type="email" placeholder="Email" />
-            <input type="password" placeholder="Password" />
-            <button type="submit" className="primary-btn">
-              Log In
+          {error && (
+            <div className="text-red-500 text-sm mb-4 p-2 bg-red-100 rounded">
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleLoginSubmit}>
+            <input 
+              type="email" 
+              name="email"
+              placeholder="Email" 
+              value={formData.email}
+              onChange={handleChange}
+              required
+              disabled={loading}
+            />
+            <input 
+              type="password" 
+              name="password"
+              placeholder="Password" 
+              value={formData.password}
+              onChange={handleChange}
+              required
+              disabled={loading}
+            />
+            <button type="submit" className="primary-btn" disabled={loading}>
+              {loading ? "Logging in..." : "Log In"}
             </button>
           </form>
+
+          <div className="or-divider">or</div>
+
+          <button 
+            onClick={handleGoogleLogin} 
+            className="google-btn mt-3"
+            disabled={loading}
+          >
+            <img src="/images/google.png" alt="Google" className="google-icon" />
+            {isSignup ? "Sign up with Google" : "Continue with Google"}
+          </button>
 
           <p className="switch-text">
             New here? <Link to="/signup">Sign up</Link>
@@ -52,14 +149,54 @@ export default function AuthCard({ mode }) {
           <h2>Create Account</h2>
           <p>Join the community</p>
 
-          <form>
-            <input type="text" placeholder="Name" />
-            <input type="email" placeholder="Email" />
-            <input type="password" placeholder="Password" />
-            <button type="submit" className="primary-btn">
-              Sign Up
+          {error && (
+            <div className="text-red-500 text-sm mb-4 p-2 bg-red-100 rounded">
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleSignupSubmit}>
+            <input 
+              type="text" 
+              name="name"
+              placeholder="Name" 
+              value={formData.name}
+              onChange={handleChange}
+              disabled={loading}
+            />
+            <input 
+              type="email" 
+              name="email"
+              placeholder="Email" 
+              value={formData.email}
+              onChange={handleChange}
+              required
+              disabled={loading}
+            />
+            <input 
+              type="password" 
+              name="password"
+              placeholder="Password" 
+              value={formData.password}
+              onChange={handleChange}
+              required
+              disabled={loading}
+            />
+            <button type="submit" className="primary-btn" disabled={loading}>
+              {loading ? "Signing up..." : "Sign Up"}
             </button>
           </form>
+
+          <div className="or-divider">or</div>
+
+          <button 
+            onClick={handleGoogleLogin} 
+            className="google-btn mt-3"
+            disabled={loading}
+          >
+            <img src="/images/google.png" alt="Google" className="google-icon" />
+            Sign up with Google
+          </button>
 
           <p className="switch-text">
             Already have an account? <Link to="/login">Log in</Link>

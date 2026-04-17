@@ -1,6 +1,6 @@
 // src/pages/ProfilePage.jsx
 import { useState, useEffect } from "react";
-import { auth, db } from "../firebase/config"; // Adjust this import path to your firebase config file
+import { auth, db } from "../firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 

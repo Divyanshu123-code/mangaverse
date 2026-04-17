@@ -2,24 +2,31 @@ const API_BASE = "https://api.mangadex.org";
 const FALLBACK_COVER =
   "https://placehold.co/512x720/0b1220/FFFFFF?text=No+Cover";
 
-// ✅ Build cover URL safely
-async function getCover(mangaId, relationships = []) {
-  let cover = relationships.find((r) => r.type === "cover_art");
-
-  if (!cover?.attributes?.fileName) {
-    try {
-      const res = await fetch(`${API_BASE}/cover?manga[]=${mangaId}`);
-      const data = await res.json();
-      const coverFile = data?.data?.[0]?.attributes?.fileName;
-      if (coverFile)
-        return `https://uploads.mangadex.org/covers/${mangaId}/${coverFile}.512.jpg`;
-    } catch (err) {
-      console.warn("⚠️ Failed to fetch cover separately:", err);
-    }
-    return FALLBACK_COVER;
+// ✅ Sync cover builder — uses relationships already included in the response
+function getCoverSync(mangaId, relationships = []) {
+  const cover = relationships.find((r) => r.type === "cover_art");
+  if (cover?.attributes?.fileName) {
+    return `https://uploads.mangadex.org/covers/${mangaId}/${cover.attributes.fileName}.512.jpg`;
   }
+  return FALLBACK_COVER;
+}
 
-  return `https://uploads.mangadex.org/covers/${mangaId}/${cover.attributes.fileName}.512.jpg`;
+// ✅ Async cover builder — used only when cover_art wasn't included (detail page fallback)
+async function getCover(mangaId, relationships = []) {
+  const cover = relationships.find((r) => r.type === "cover_art");
+  if (cover?.attributes?.fileName) {
+    return `https://uploads.mangadex.org/covers/${mangaId}/${cover.attributes.fileName}.512.jpg`;
+  }
+  try {
+    const res = await fetch(`${API_BASE}/cover?manga[]=${mangaId}`);
+    const data = await res.json();
+    const coverFile = data?.data?.[0]?.attributes?.fileName;
+    if (coverFile)
+      return `https://uploads.mangadex.org/covers/${mangaId}/${coverFile}.512.jpg`;
+  } catch (err) {
+    console.warn("⚠️ Failed to fetch cover separately:", err);
+  }
+  return FALLBACK_COVER;
 }
 
 // ✅ English title extraction
@@ -37,43 +44,51 @@ function getEnglishTitle(attributes) {
 
 // ✅ Universal fetch for lists (used by everything)
 async function fetchManga(params = {}) {
-  const url = new URL(`${API_BASE}/manga`);
-  url.searchParams.set("limit", params.limit || 20);
-  url.searchParams.set("availableTranslatedLanguage[]", "en");
-  url.searchParams.set("includes[]", "cover_art");
+  // Build base params via URLSearchParams for safe encoding
+  const sp = new URLSearchParams();
 
-  // 🔍 Add filters
-  if (params.title) url.searchParams.set("title", params.title);
-  if (params.status) url.searchParams.set("status", params.status);
-  if (params.type) url.searchParams.set("originalLanguage[]", getLangFromType(params.type));
-  if (params.demographic) url.searchParams.set("publicationDemographic", params.demographic);
+  sp.append("includes[]", "cover_art");
+  sp.set("limit", String(params.limit || 20));
+  if (params.offset) sp.set("offset", String(params.offset));
+  sp.append("availableTranslatedLanguage[]", "en");
+
+  if (params["originalLanguage[]"]) {
+    sp.append("originalLanguage[]", params["originalLanguage[]"]);
+  }
+  if (params.title) sp.set("title", params.title);
+  if (params.status) sp.append("status[]", params.status);
+  if (params.demographic) sp.append("publicationDemographic[]", params.demographic);
   if (Array.isArray(params.genres) && params.genres.length > 0) {
-    params.genres.forEach((genreId) => url.searchParams.append("includedTags[]", genreId));
+    params.genres.forEach((id) => sp.append("includedTags[]", id));
   }
 
-  Object.entries(params).forEach(([key, value]) => {
-    if (value == null || ["title", "status", "type", "demographic", "genres"].includes(key)) return;
-    if (Array.isArray(value)) value.forEach((v) => url.searchParams.append(key, v));
-    else url.searchParams.set(key, value);
-  });
+  // order[x]=y params must be appended as raw strings — URLSearchParams encodes
+  // the brackets which MangaDex does not accept
+  const orderKey = Object.keys(params).find((k) => k.startsWith("order["));
+  const orderStr = orderKey ? `&${orderKey}=${params[orderKey]}` : "";
 
-  const res = await fetch(url.toString());
-  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  const finalUrl = `${API_BASE}/manga?${sp.toString()}${orderStr}`;
+  console.log("📡 MangaDex request:", finalUrl);
+
+  const res = await fetch(finalUrl);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`MangaDex API error: ${res.status} — ${text}`);
+  }
   const data = await res.json();
+  console.log(`✅ MangaDex returned ${data.data?.length ?? 0} results`);
 
-  return Promise.all(
-    (data.data || []).map(async (m) => ({
-      id: m.id,
-      title: getEnglishTitle(m.attributes),
-      description:
-        m.attributes?.description?.en ||
-        Object.values(m.attributes?.description || {})[0] ||
-        "",
-      status: m.attributes?.status || "unknown",
-      year: m.attributes?.year || "N/A",
-      cover: await getCover(m.id, m.relationships),
-    }))
-  );
+  return (data.data || []).map((m) => ({
+    id: m.id,
+    title: getEnglishTitle(m.attributes),
+    description:
+      m.attributes?.description?.en ||
+      Object.values(m.attributes?.description || {})[0] ||
+      "",
+    status: m.attributes?.status || "unknown",
+    year: m.attributes?.year || "N/A",
+    cover: getCoverSync(m.id, m.relationships),
+  }));
 }
 
 // 🈯️ Helper to map type → language
@@ -114,13 +129,11 @@ export async function fetchRecentlyUpdated(lang = "ja") {
     limit: 20,
   });
 }
-
-// ✅ Full Manga Details
 export async function fetchMangaById(mangaId) {
   const url = new URL(`${API_BASE}/manga/${mangaId}`);
-  url.searchParams.set("includes[]", "cover_art");
-  url.searchParams.set("includes[]", "author");
-  url.searchParams.set("includes[]", "artist");
+  url.searchParams.append("includes[]", "cover_art");
+  url.searchParams.append("includes[]", "author");
+  url.searchParams.append("includes[]", "artist");
 
   const res = await fetch(url.toString());
   if (!res.ok) throw new Error(`API error: ${res.status}`);
@@ -158,14 +171,13 @@ export async function fetchChaptersForManga(mangaId, limit = 100) {
   let total = 0;
 
   do {
-    const url = new URL(`${API_BASE}/chapter`);
-    url.searchParams.set("manga", mangaId);
-    url.searchParams.append("translatedLanguage[]", "en");
-    url.searchParams.set("limit", limit);
-    url.searchParams.set("offset", offset);
-    url.searchParams.set("order[chapter]", "asc");
+    const sp = new URLSearchParams();
+    sp.set("manga", mangaId);
+    sp.append("translatedLanguage[]", "en");
+    sp.set("limit", String(limit));
+    sp.set("offset", String(offset));
 
-    const res = await fetch(url.toString());
+    const res = await fetch(`${API_BASE}/chapter?${sp.toString()}&order[chapter]=asc`);
     if (!res.ok) throw new Error(`API error: ${res.status}`);
     const data = await res.json();
 
