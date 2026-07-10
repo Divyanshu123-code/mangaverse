@@ -1,4 +1,4 @@
-// src/Api/tagService.js
+// src/api/tagService.js
 const TAGS_API = "https://api.mangadex.org/manga/tag";
 
 let tagCache = null;

@@ -1,7 +1,7 @@
 // src/pages/SearchResultsPage.jsx
 import { useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { fetchManga } from "../Api/mangaApi";
+import { fetchManga } from "../api/mangaApi";
 import Select from "react-select";
 
 // MangaDex tag UUIDs — these are stable
@@ -23,7 +23,7 @@ const genreOptions = [
   { value: "ace04997-f6bd-436e-b261-779182193d3d", label: "Isekai" },
   { value: "81c836c9-914a-4eca-981a-560dad663e73", label: "Martial Arts" },
   { value: "799c202e-7daa-44eb-9cf7-8a3c0441531e", label: "Mecha" },
-  { value: "87cc87cd-a395-47af-b27a-93258283bbc6", label: "Romance" },
+  { value: "423e2eae-a7a2-4a8b-ac03-a8351462d71d", label: "Romance" },
 ];
 
 const demographicOptions = [

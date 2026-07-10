@@ -1,11 +1,13 @@
 import { createContext, useContext, useEffect, useState } from "react";
-import { auth, db, googleProvider } from "../firebase";
+import { auth, db, googleProvider, browserLocalPersistence } from "../firebase";
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
+  signInWithRedirect,
   signInWithPopup,
   signOut,
   onAuthStateChanged,
+  setPersistence,
   sendPasswordResetEmail,
 } from "firebase/auth";
 import {
@@ -26,6 +28,25 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  function mapAuthError(error) {
+    switch (error?.code) {
+      case "auth/popup-blocked":
+        return "Popup was blocked by the browser. We will try redirect sign-in instead.";
+      case "auth/popup-closed-by-user":
+        return "Google sign-in popup was closed before completing sign-in.";
+      case "auth/cancelled-popup-request":
+        return "Another sign-in popup is already open.";
+      case "auth/unauthorized-domain":
+        return "This domain is not authorized in Firebase Authentication.";
+      case "auth/operation-not-allowed":
+        return "Google sign-in is not enabled in Firebase Authentication.";
+      case "auth/network-request-failed":
+        return "Network error while contacting Google/Firebase. Check your connection and try again.";
+      default:
+        return error?.message || "Authentication failed.";
+    }
+  }
+
   // auth actions
   const signup = (email, password) =>
     createUserWithEmailAndPassword(auth, email, password);
@@ -33,8 +54,22 @@ export function AuthProvider({ children }) {
   const login = (email, password) =>
     signInWithEmailAndPassword(auth, email, password);
 
-  const loginWithGoogle = () =>
-    signInWithPopup(auth, googleProvider);
+  const loginWithGoogle = async () => {
+    await setPersistence(auth, browserLocalPersistence);
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      return { result, redirected: false };
+    } catch (error) {
+      if (error?.code === "auth/popup-blocked") {
+        await signInWithRedirect(auth, googleProvider);
+        return { result: null, redirected: true };
+      }
+
+      const mappedError = new Error(mapAuthError(error));
+      mappedError.code = error?.code;
+      throw mappedError;
+    }
+  };
 
   const logout = () => signOut(auth);
 
@@ -71,6 +106,7 @@ export function AuthProvider({ children }) {
         user,
         loading,
         DEV_MODE,
+        mapAuthError,
         signup,
         login,
         loginWithGoogle,

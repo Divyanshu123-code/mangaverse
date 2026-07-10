@@ -2,6 +2,15 @@ const API_BASE = "https://api.mangadex.org";
 const FALLBACK_COVER =
   "https://placehold.co/512x720/0b1220/FFFFFF?text=No+Cover";
 
+async function requestJson(url) {
+  const res = await fetch(url);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`MangaDex API error: ${res.status} — ${text}`);
+  }
+  return res.json();
+}
+
 // ✅ Sync cover builder — uses relationships already included in the response
 function getCoverSync(mangaId, relationships = []) {
   const cover = relationships.find((r) => r.type === "cover_art");
@@ -44,38 +53,57 @@ function getEnglishTitle(attributes) {
 
 // ✅ Universal fetch for lists (used by everything)
 async function fetchManga(params = {}) {
-  // Build base params via URLSearchParams for safe encoding
-  const sp = new URLSearchParams();
+  const buildUrl = ({ includeEnglish = true } = {}) => {
+    const url = new URL(`${API_BASE}/manga`);
+    url.searchParams.append("includes[]", "cover_art");
+    url.searchParams.set("limit", String(params.limit || 20));
+    if (params.offset) url.searchParams.set("offset", String(params.offset));
+    if (includeEnglish) url.searchParams.append("availableTranslatedLanguage[]", "en");
 
-  sp.append("includes[]", "cover_art");
-  sp.set("limit", String(params.limit || 20));
-  if (params.offset) sp.set("offset", String(params.offset));
-  sp.append("availableTranslatedLanguage[]", "en");
+    if (params["originalLanguage[]"]) {
+      url.searchParams.append("originalLanguage[]", params["originalLanguage[]"]);
+    }
+    if (params.title) url.searchParams.set("title", params.title);
+    if (params.status) url.searchParams.append("status[]", params.status);
+    if (params.demographic) {
+      url.searchParams.append("publicationDemographic[]", params.demographic);
+    }
+    if (Array.isArray(params.genres) && params.genres.length > 0) {
+      params.genres.forEach((id) => url.searchParams.append("includedTags[]", id));
+    }
 
-  if (params["originalLanguage[]"]) {
-    sp.append("originalLanguage[]", params["originalLanguage[]"]);
+    Object.entries(params).forEach(([key, value]) => {
+      if (!key.startsWith("order[") || value == null) return;
+      url.searchParams.append(key, value);
+    });
+
+    return url.toString();
+  };
+
+  const primaryUrl = buildUrl({ includeEnglish: true });
+  console.log("📡 MangaDex request:", primaryUrl);
+
+  let data;
+  try {
+    data = await requestJson(primaryUrl);
+  } catch (error) {
+    console.warn("⚠️ Primary MangaDex request failed:", error);
+    const fallbackUrl = buildUrl({ includeEnglish: false });
+    console.log("📡 MangaDex fallback request:", fallbackUrl);
+    data = await requestJson(fallbackUrl);
   }
-  if (params.title) sp.set("title", params.title);
-  if (params.status) sp.append("status[]", params.status);
-  if (params.demographic) sp.append("publicationDemographic[]", params.demographic);
-  if (Array.isArray(params.genres) && params.genres.length > 0) {
-    params.genres.forEach((id) => sp.append("includedTags[]", id));
+
+  if ((data.data?.length ?? 0) === 0) {
+    const fallbackUrl = buildUrl({ includeEnglish: false });
+    if (fallbackUrl !== primaryUrl) {
+      console.log("📡 MangaDex empty result fallback:", fallbackUrl);
+      const fallbackData = await requestJson(fallbackUrl);
+      if ((fallbackData.data?.length ?? 0) > 0) {
+        data = fallbackData;
+      }
+    }
   }
 
-  // order[x]=y params must be appended as raw strings — URLSearchParams encodes
-  // the brackets which MangaDex does not accept
-  const orderKey = Object.keys(params).find((k) => k.startsWith("order["));
-  const orderStr = orderKey ? `&${orderKey}=${params[orderKey]}` : "";
-
-  const finalUrl = `${API_BASE}/manga?${sp.toString()}${orderStr}`;
-  console.log("📡 MangaDex request:", finalUrl);
-
-  const res = await fetch(finalUrl);
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`MangaDex API error: ${res.status} — ${text}`);
-  }
-  const data = await res.json();
   console.log(`✅ MangaDex returned ${data.data?.length ?? 0} results`);
 
   return (data.data || []).map((m) => ({
@@ -89,20 +117,6 @@ async function fetchManga(params = {}) {
     year: m.attributes?.year || "N/A",
     cover: getCoverSync(m.id, m.relationships),
   }));
-}
-
-// 🈯️ Helper to map type → language
-function getLangFromType(type) {
-  switch (type) {
-    case "manga":
-      return "ja";
-    case "manhwa":
-      return "ko";
-    case "manhua":
-      return "zh";
-    default:
-      return null;
-  }
 }
 
 // ✅ Section fetchers
@@ -173,7 +187,6 @@ export async function fetchChaptersForManga(mangaId, limit = 100) {
   do {
     const sp = new URLSearchParams();
     sp.set("manga", mangaId);
-    sp.append("translatedLanguage[]", "en");
     sp.set("limit", String(limit));
     sp.set("offset", String(offset));
 
@@ -186,16 +199,40 @@ export async function fetchChaptersForManga(mangaId, limit = 100) {
     offset += limit;
   } while (offset < total);
 
-  const chapters = allChapters.map((ch) => ({
-    id: ch.id,
-    chapter: ch.attributes?.chapter || "?",
-    title: ch.attributes?.title || "",
-    pages: ch.attributes?.pages || 0,
-    readableAt: ch.attributes?.readableAt,
-  }));
+  const chaptersByNumber = new Map();
+  allChapters.forEach((ch) => {
+    const chapterValue = ch.attributes?.chapter;
+    const numericChapter =
+      chapterValue !== null && chapterValue !== undefined
+        ? parseFloat(chapterValue)
+        : NaN;
+
+    if (Number.isNaN(numericChapter)) return;
+
+    const normalized = {
+      id: ch.id,
+      chapter: chapterValue,
+      title: ch.attributes?.title || "",
+      pages: ch.attributes?.pages || 0,
+      readableAt: ch.attributes?.readableAt,
+      lang: ch.attributes?.translatedLanguage || "unknown",
+    };
+
+    if (!chaptersByNumber.has(numericChapter)) {
+      chaptersByNumber.set(numericChapter, normalized);
+      return;
+    }
+
+    const existing = chaptersByNumber.get(numericChapter);
+    if (existing.lang !== "en" && normalized.lang === "en") {
+      chaptersByNumber.set(numericChapter, normalized);
+    }
+  });
+
+  const chapters = Array.from(chaptersByNumber.values());
 
   return {
-    total,
+    total: chapters.length,
     chapters: chapters.sort((a, b) => parseFloat(a.chapter) - parseFloat(b.chapter)),
   };
 }

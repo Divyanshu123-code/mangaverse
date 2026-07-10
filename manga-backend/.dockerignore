@@ -1,0 +1,9 @@
+node_modules
+npm-debug.log
+.env
+asura_search_debug.html
+flame_search.html
+manganato.html
+debug_*.cjs
+investigate*.cjs
+test*.cjs

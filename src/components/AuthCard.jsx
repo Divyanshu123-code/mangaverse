@@ -7,7 +7,7 @@ import "./AuthCard.css";
 export default function AuthCard({ mode }) {
   const isSignup = mode === "signup";
   const navigate = useNavigate();
-  const { login, signup, loginWithGoogle } = useAuth();
+  const { login, signup, loginWithGoogle, mapAuthError } = useAuth();
   
   const [formData, setFormData] = useState({
     name: "",
@@ -34,7 +34,7 @@ export default function AuthCard({ mode }) {
       await login(formData.email, formData.password);
       navigate("/home");
     } catch (err) {
-      setError(err.message || "Failed to login");
+      setError(mapAuthError(err));
     } finally {
       setLoading(false);
     }
@@ -49,7 +49,7 @@ export default function AuthCard({ mode }) {
       await signup(formData.email, formData.password);
       navigate("/home");
     } catch (err) {
-      setError(err.message || "Failed to sign up");
+      setError(mapAuthError(err));
     } finally {
       setLoading(false);
     }
@@ -60,10 +60,11 @@ export default function AuthCard({ mode }) {
     setLoading(true);
 
     try {
-      await loginWithGoogle();
+      const result = await loginWithGoogle();
+      if (result?.redirected) return;
       navigate("/home");
     } catch (err) {
-      setError(err.message || "Failed to login with Google");
+      setError(mapAuthError(err));
     } finally {
       setLoading(false);
     }

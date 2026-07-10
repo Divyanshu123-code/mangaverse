@@ -12,7 +12,7 @@ import {
   fetchTopRated,
   fetchTrending,
   fetchRecentlyUpdated,
-} from "../Api/mangaApi";
+} from "../api/mangaApi";
 
 export default function HomePage() {
   const [cat, setCat] = useState("manga");
@@ -26,6 +26,7 @@ export default function HomePage() {
   const [loadingTop, setLoadingTop] = useState(true);
   const [loadingTrend, setLoadingTrend] = useState(true);
   const [loadingRecent, setLoadingRecent] = useState(true);
+  const [loadError, setLoadError] = useState("");
 
   const navigate = useNavigate();
   const { followed } = useFollow(); // ✅ get followed list
@@ -38,6 +39,7 @@ export default function HomePage() {
       setLoadingTop(true);
       setLoadingTrend(true);
       setLoadingRecent(true);
+      setLoadError("");
 
       const [topResult, trendResult, recentResult] = await Promise.allSettled([
         fetchTopRated(lang),
@@ -58,6 +60,14 @@ export default function HomePage() {
       if (recentResult.status === "fulfilled") setRecentlyUpdated(recentResult.value);
       else console.error("Recently updated failed:", recentResult.reason);
       setLoadingRecent(false);
+
+      if (
+        topResult.status === "rejected" &&
+        trendResult.status === "rejected" &&
+        recentResult.status === "rejected"
+      ) {
+        setLoadError("Unable to load manga lists right now. Check your connection and refresh the page.");
+      }
     }
 
     loadData();
@@ -87,6 +97,14 @@ export default function HomePage() {
       </div>
 
       <main className="pt-16">
+        {loadError && (
+          <div className="px-6 md:px-10 pt-6">
+            <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+              {loadError}
+            </div>
+          </div>
+        )}
+
         {/* 🎬 Hero Section */}
         <section className="relative w-full h-[65vh] md:h-[75vh] overflow-hidden">
           <AnimatePresence mode="wait">
@@ -136,6 +154,25 @@ export default function HomePage() {
                   More Info
                 </button>
               </motion.div>
+            </div>
+          )}
+
+          {!hero && !loadingTop && !loadingTrend && (
+            <div className="absolute inset-0 z-10 flex items-center justify-center px-6">
+              <div className="max-w-xl text-center">
+                <h1 className="text-3xl md:text-5xl font-extrabold text-white mb-4">
+                  MangaVerse
+                </h1>
+                <p className="text-gray-300 mb-6">
+                  We could not load featured titles right now. Try refreshing the page or switching category below.
+                </p>
+                <button
+                  className="px-6 py-3 bg-gradient-to-r from-pink-600 to-red-500 text-white font-semibold rounded-lg shadow-lg hover:opacity-90 transition"
+                  onClick={() => window.location.reload()}
+                >
+                  Reload Home
+                </button>
+              </div>
             </div>
           )}
 

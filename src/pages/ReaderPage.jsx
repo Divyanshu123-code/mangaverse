@@ -78,7 +78,7 @@ export default function ReaderPage() {
     }
 
     loadImages();
-  }, [currentMirror, mangaId]);
+  }, [currentMirror, chapterNum, mangaId, mangaTitle]);
 
   const handleMirrorSwitch = (mirror) => {
     if (mirror.source === currentMirror.source && mirror.id === currentMirror.id) return;

@@ -3,6 +3,7 @@ import { initializeApp } from "firebase/app";
 import { 
   getAuth, 
   GoogleAuthProvider, 
+  browserLocalPersistence,
   updateProfile as firebaseUpdateProfile 
 } from "firebase/auth";
 import { 
@@ -40,6 +41,12 @@ const app = initializeApp(firebaseConfig);
 // 🔐 Authentication
 const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
+auth.useDeviceLanguage();
+googleProvider.setCustomParameters({
+  prompt: "select_account",
+});
+googleProvider.addScope("email");
+googleProvider.addScope("profile");
 
 // 📦 Firestore
 const db = getFirestore(app);
@@ -49,6 +56,7 @@ const storage = getStorage(app);
 
 export {
   auth,
+  browserLocalPersistence,
   googleProvider,
   db,
   storage,

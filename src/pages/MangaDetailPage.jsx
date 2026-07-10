@@ -1,10 +1,53 @@
 // src/pages/MangaDetailPage.jsx
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { fetchMangaById } from "../Api/mangaApi";
+import { fetchChaptersForManga, fetchMangaById } from "../api/mangaApi";
 import { useFollow } from "../Context/FollowContext";
 
 const CHAPTERS_PER_PAGE = 50;
+
+function normalizeMangadexFallback(chapters = []) {
+  return chapters
+    .filter((ch) => ch.lang === "en") // Filter for English
+    .map((chapter) => {
+      const parsedChapter = parseFloat(chapter.chapter);
+      if (Number.isNaN(parsedChapter)) return null;
+
+      return {
+        id: chapter.id,
+        chapter: parsedChapter,
+        title: chapter.title || `Chapter ${parsedChapter}`,
+        source: "mangadex",
+        url: `https://mangadex.org/chapter/${chapter.id}`,
+        mirrors: [
+          {
+            id: chapter.id,
+            source: "mangadex",
+            url: `https://mangadex.org/chapter/${chapter.id}`,
+            title: chapter.title || `Chapter ${parsedChapter}`,
+          },
+        ],
+      };
+    })
+    .filter(Boolean);
+}
+
+function getPreferredMirror(chapter, source = "all") {
+  const mirrors = chapter.mirrors || [];
+
+  if (source === "all") {
+    return (
+      mirrors[0] || {
+        id: chapter.id,
+        source: chapter.source,
+        url: chapter.url,
+        title: chapter.title,
+      }
+    );
+  }
+
+  return mirrors.find((mirror) => mirror.source === source) || null;
+}
 
 export default function MangaDetailPage() {
   const { id } = useParams();
@@ -14,6 +57,7 @@ export default function MangaDetailPage() {
   const [filtered, setFiltered] = useState([]);
   const [scanner, setScanner] = useState("all");
   const [loading, setLoading] = useState(true);
+  const [chaptersLoading, setChaptersLoading] = useState(false);
   const [animateFollow, setAnimateFollow] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -24,33 +68,49 @@ export default function MangaDetailPage() {
       try {
         setLoading(true);
 
+        // 1. Load basic Manga details first (FAST)
         const data = await fetchMangaById(id);
         setManga(data);
+        setLoading(false); // Page ready, but chapters might not be
 
+        // 2. Load Chapters in parallel/background (SLOW due to scraping)
+        setChaptersLoading(true);
         const slug = data.title
-          ?.toLowerCase()
-          .normalize("NFD")
-          .replace(/[\u0300-\u036f]/g, "")
-          .replace(/[^a-z0-9\s-]/g, "")
-          .trim()
-          .replace(/\s+/g, "-") || "";
-        const res = await fetch(`/api/chapters?mangaId=${id}&slug=${slug}&title=${encodeURIComponent(data.title)}`);
-
-        if (!res.ok) {
-          console.error(`❌ Backend returned ${res.status}`);
-          setChapters([]);
-          setFiltered([]);
-          return;
-        }
-
-        const json = await res.json().catch(() => null);
-        const chapterList = json?.data || json?.chapters || [];
+            ?.toLowerCase()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .replace(/[^a-z0-9\s-]/g, "")
+            .trim()
+            .replace(/\s+/g, "-") || "";
         
-        setChapters(chapterList);
-        setFiltered(chapterList);
+        try {
+          const res = await fetch(`/api/chapters?mangaId=${id}&slug=${slug}&title=${encodeURIComponent(data.title)}&refresh=1`);
+          
+          let chapterList = [];
+          if (res.ok) {
+            const json = await res.json().catch(() => null);
+            chapterList = json?.data || json?.chapters || [];
+          }
+
+          if (chapterList.length === 0) {
+            console.log("⬇️ Using Direct MangaDex Fallback");
+            const fallback = await fetchChaptersForManga(id);
+            chapterList = normalizeMangadexFallback(fallback?.chapters || []);
+          }
+          
+          setChapters(chapterList);
+          setFiltered(chapterList);
+        } catch (chapterErr) {
+          console.warn("🌐 Mirror engine unreachable, falling back:", chapterErr.message);
+          const fallback = await fetchChaptersForManga(id);
+          const list = normalizeMangadexFallback(fallback?.chapters || []);
+          setChapters(list);
+          setFiltered(list);
+        } finally {
+          setChaptersLoading(false);
+        }
       } catch (err) {
-        console.error("❌ Error loading manga:", err);
-        setChapters([]);
+        console.error("❌ Fatal error in detail page:", err);
       } finally {
         setLoading(false);
       }
@@ -65,7 +125,20 @@ export default function MangaDetailPage() {
     if (scanner === "all") {
       result = chapters;
     } else {
-      result = chapters.filter((c) => c.source === scanner);
+      result = chapters
+        .map((chapter) => {
+          const preferredMirror = getPreferredMirror(chapter, scanner);
+          if (!preferredMirror) return null;
+
+          return {
+            ...chapter,
+            id: preferredMirror.id,
+            source: preferredMirror.source,
+            url: preferredMirror.url,
+            title: preferredMirror.title || chapter.title,
+          };
+        })
+        .filter(Boolean);
     }
     setFiltered(result);
     setCurrentPage(1); // Reset to page 1 on filter
@@ -96,7 +169,14 @@ export default function MangaDetailPage() {
     setTimeout(() => setAnimateFollow(false), 700);
   };
 
-  const availableScanners = ["all", ...new Set(chapters.map((ch) => ch.source))];
+  const availableScanners = [
+    "all",
+    ...new Set(
+      chapters.flatMap((chapter) =>
+        (chapter.mirrors || []).map((mirror) => mirror.source)
+      )
+    ),
+  ];
 
   // Pagination Logic
   const totalPages = Math.ceil(filtered.length / CHAPTERS_PER_PAGE);
@@ -164,13 +244,17 @@ export default function MangaDetailPage() {
                     // Find first chapter (lowest number)
                     const sortedAsc = [...chapters].sort((a,b) => a.chapter - b.chapter);
                     const firstChap = sortedAsc[0];
+                    const preferredMirror = getPreferredMirror(firstChap, scanner);
+                    if (!preferredMirror) return;
                     navigate("/read", {
                       state: {
-                        chapterId: firstChap.id,
-                        source: firstChap.source,
-                        url: firstChap.url,
+                        chapterId: preferredMirror.id,
+                        source: preferredMirror.source,
+                        url: preferredMirror.url,
                         mangaTitle: manga.title,
-                        chapterNum: firstChap.chapter
+                        chapterNum: firstChap.chapter,
+                        mangaId: id,
+                        mirrors: firstChap.mirrors || []
                       }
                     });
                  }
@@ -246,7 +330,13 @@ export default function MangaDetailPage() {
 
       {/* 📖 Chapters List */}
       <div className="max-w-5xl mx-auto px-6">
-        {filtered.length === 0 ? (
+        {chaptersLoading ? (
+            <div className="text-center py-20 bg-[#161d2b] rounded-2xl border border-white/5 shadow-inner">
+                <div className="w-10 h-10 border-4 border-pink-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                <p className="text-sm font-bold text-gray-400 animate-pulse tracking-widest uppercase">Scanning Mirrors for Chapters...</p>
+                <p className="text-[10px] text-gray-600 mt-2 italic">Connecting to Asura, Flame, and MangaHub</p>
+            </div>
+        ) : filtered.length === 0 ? (
           <div className="text-center py-20 bg-[#161d2b] rounded-2xl border border-dashed border-white/10">
               <p className="text-gray-500">No chapters found from this scanner.</p>
           </div>
@@ -257,11 +347,13 @@ export default function MangaDetailPage() {
                 <div
                   key={`${ch.source}-${ch.id}`}
                   onClick={() => {
+                    const preferredMirror = getPreferredMirror(ch, scanner);
+                    if (!preferredMirror) return;
                     navigate("/read", {
                       state: {
-                        chapterId: ch.id,
-                        source: ch.source,
-                        url: ch.url,
+                        chapterId: preferredMirror.id,
+                        source: preferredMirror.source,
+                        url: preferredMirror.url,
                         mangaTitle: manga.title,
                         chapterNum: ch.chapter,
                         mangaId: id,

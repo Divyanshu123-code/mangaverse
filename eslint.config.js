@@ -7,6 +7,13 @@ import reactHooks from "eslint-plugin-react-hooks";
 
 export default [
   {
+    ignores: [
+      "dist/**",
+      "node_modules/**",
+      "manga-backend/**/*.cjs",
+    ],
+  },
+  {
     files: ["**/*.{js,jsx}"],
     languageOptions: {
       globals: {
@@ -26,6 +33,11 @@ export default [
       react: reactPlugin,
       "react-hooks": reactHooks,
     },
+    settings: {
+      react: {
+        version: "detect",
+      },
+    },
     rules: {
       // you can spread recommended rules
       ...js.configs.recommended.rules,
@@ -38,7 +50,8 @@ export default [
 
       // Overwrites / your custom rules
       "no-unused-vars": ["error", { varsIgnorePattern: "^[A-Z_]" }],
-      // etc. add more custom ones you want
-    }
-  }
+      "react/react-in-jsx-scope": "off",
+      "react/prop-types": "off",
+    },
+  },
 ];

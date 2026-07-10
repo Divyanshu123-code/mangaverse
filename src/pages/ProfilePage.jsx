@@ -1,42 +1,25 @@
 // src/pages/ProfilePage.jsx
-import { useState, useEffect } from "react";
-import { auth, db } from "../firebase";
-import { doc, getDoc } from "firebase/firestore";
-import { onAuthStateChanged } from "firebase/auth";
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../Context/AuthContext";
+import { useFollow } from "../Context/FollowContext";
 
 export default function ProfilePage() {
   const [favorites, setFavorites] = useState([]);
   const [history, setHistory] = useState([]);
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+  const { user, loading } = useAuth();
+  const { followed } = useFollow();
 
-  // Effect to fetch user data from Firestore
   useEffect(() => {
-    // Listen for authentication state changes
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      if (currentUser) {
-        setUser(currentUser);
-        // Fetch data from the user's document in Firestore
-        const userDocRef = doc(db, "users", currentUser.uid);
-        const userDocSnap = await getDoc(userDocRef);
+    setFavorites(followed);
+  }, [followed]);
 
-        if (userDocSnap.exists()) {
-          const userData = userDocSnap.data();
-          // Assuming 'favorites' and 'history' are arrays in the user's document
-          setFavorites(userData.favorites || []);
-          setHistory(userData.history || []);
-        } else {
-          console.log("No such user document!");
-        }
-      } else {
-        setUser(null); // No user is signed in
-      }
-      setLoading(false); // Set loading to false after checking auth and fetching data
-    });
-
-    // Cleanup subscription on component unmount
-    return () => unsubscribe();
-  }, []); // Empty dependency array means this runs once on mount
+  useEffect(() => {
+    const savedHistory = JSON.parse(localStorage.getItem("readingHistory") || "[]");
+    savedHistory.sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
+    setHistory(savedHistory);
+  }, []);
 
   if (loading) {
     return (
@@ -68,13 +51,20 @@ export default function ProfilePage() {
         <section className="mb-8">
           <h2 className="text-xl font-semibold mb-4 border-b border-gray-700 pb-2">⭐ Favorites</h2>
           {favorites.length === 0 ? (
-            <p className="text-gray-400 text-center py-4">You haven't added any favorites yet.</p>
+            <p className="text-gray-400 text-center py-4">You have not added any favorites yet.</p>
           ) : (
             <ul className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
               {favorites.map((manga) => (
-                <li key={manga.id} className="text-center">
-                  {/* It's better to create a reusable MangaCard component for this */}
-                  <img src={manga.coverImage} alt={manga.title} className="rounded shadow-md aspect-[2/3] object-cover" />
+                <li
+                  key={manga.id}
+                  className="text-center cursor-pointer"
+                  onClick={() => navigate(`/manga/${manga.id}`)}
+                >
+                  <img
+                    src={manga.cover || manga.coverImage || "https://placehold.co/300x450/0b1220/FFFFFF?text=No+Cover"}
+                    alt={manga.title}
+                    className="rounded shadow-md aspect-[2/3] object-cover"
+                  />
                   <p className="text-sm mt-2 truncate">{manga.title}</p>
                 </li>
               ))}
@@ -93,9 +83,29 @@ export default function ProfilePage() {
                 <li key={item.id} className="bg-[#1f2937] p-3 rounded-md flex items-center justify-between">
                   <div>
                     <p className="font-semibold">{item.title}</p>
-                    <p className="text-sm text-gray-400">Last read: Chapter {item.lastReadChapter}</p>
+                    <p className="text-sm text-gray-400">Last read: Chapter {item.lastChapterRead}</p>
                   </div>
-                  <button className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm px-3 py-1 rounded-full">
+                  <button
+                    onClick={() => {
+                      if (item.chapterId && item.source) {
+                        navigate("/read", {
+                          state: {
+                            chapterId: item.chapterId,
+                            source: item.source,
+                            url: item.url,
+                            mangaTitle: item.title,
+                            chapterNum: item.lastChapterRead,
+                            mangaId: item.mangaId,
+                            mirrors: item.mirrors || [],
+                          },
+                        });
+                        return;
+                      }
+
+                      navigate(`/manga/${item.mangaId}`);
+                    }}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm px-3 py-1 rounded-full"
+                  >
                     Continue
                   </button>
                 </li>

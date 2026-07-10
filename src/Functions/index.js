@@ -12,7 +12,7 @@ const db = admin.firestore();
 
 exports.checkNewMangaUpdates = functions.pubsub
   .schedule("every 1 hours")   // adjust as needed
-  .onRun(async (context) => {
+  .onRun(async () => {
     console.log("Running scheduled checkNewMangaUpdates");
 
     try {

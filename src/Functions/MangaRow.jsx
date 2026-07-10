@@ -47,6 +47,11 @@ export default function MangaRow({ title, items = [], loading = false, onCardCli
           {loading
             ? Array.from({ length: 10 }).map((_, i) => <SkeletonCard key={i} />)
             : items.map((m) => <MangaCard key={m.id} manga={m} onCardClick={onCardClick} />)}
+          {!loading && items.length === 0 && (
+            <div className="w-full min-h-[160px] rounded-xl border border-dashed border-white/10 bg-white/5 px-5 py-6 text-sm text-gray-400 flex items-center">
+              No manga available right now. Try changing category or reload the page.
+            </div>
+          )}
         </div>
       </div>
     </section>
